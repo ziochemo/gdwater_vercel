@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>GD Water Rapportino</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--p:#0A1C3B;--a:#1D5EFF;--al:#EEF3FF;--s:#059669;--sl:#ECFDF5;--d:#DC2626;--t:#0F172A;--m:#64748B;--b:#E2E8F0;--bg:#F1F5F9;--c:#fff;--r:12px}
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
+body{font-family:"DM Sans",sans-serif;background:var(--bg);color:var(--t);-webkit-tap-highlight-color:transparent}
+#app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+.hdr{background:var(--p);color:#fff;padding:14px 18px 10px;position:sticky;top:0;z-index:20}
+.brand{font-size:17px;font-weight:700}.brand b{color:#2BBCBD}
+.hlbl{font-size:11px;color:rgba(255,255,255,.5);margin-top:2px}
+.pb{height:3px;background:rgba(255,255,255,.15);margin-top:10px;border-radius:2px}
+.pf{height:100%;background:#5B9BFF;border-radius:2px;transition:width .4s}
+.step{flex:1;padding:18px 16px 110px;display:none}.step.on{display:block}
+h1{font-size:21px;font-weight:700;margin-bottom:3px}
+.sub{font-size:13px;color:var(--m);margin-bottom:18px}
+.box{background:var(--c);border-radius:var(--r);padding:15px;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-bottom:14px}
+.fg{margin-bottom:13px}.fg:last-child{margin-bottom:0}
+label{display:block;font-size:11px;font-weight:700;color:var(--m);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+input,textarea,select{width:100%;padding:12px 13px;border:2px solid var(--b);border-radius:8px;font-family:"DM Sans",sans-serif;font-size:15px;color:var(--t);background:var(--c);outline:none;transition:border-color .2s;-webkit-appearance:none;appearance:none}
+input:focus,textarea:focus,select:focus{border-color:var(--a)}
+textarea{resize:vertical;min-height:75px}
+.sw{position:relative}.sw::after{content:"\25BE";position:absolute;right:13px;top:50%;transform:translateY(-50%);color:var(--m);pointer-events:none}
+.err{font-size:12px;color:var(--d);margin-top:4px;display:none}
+.ag{display:flex;flex-direction:column;gap:9px;margin-bottom:18px}
+.ab{background:var(--c);border:2px solid var(--b);border-radius:var(--r);padding:14px;cursor:pointer;font-family:"DM Sans",sans-serif;display:flex;align-items:center;gap:12px;width:100%;text-align:left;transition:all .15s}
+.ab.on{border-color:var(--a);background:var(--al)}
+.an{font-size:14px;font-weight:500;line-height:1.35}
+.sep{display:flex;align-items:center;gap:10px;margin:18px 0 14px}
+.sep::before,.sep::after{content:"";flex:1;height:1px;background:var(--b)}
+.sep span{font-size:11px;font-weight:700;color:var(--m);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.ml{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.mr{display:grid;grid-template-columns:1fr 65px 36px;gap:7px;align-items:center}
+.mr input{font-size:14px;padding:10px 11px}
+.xb{width:36px;height:36px;border-radius:7px;border:none;background:#FEF2F2;color:var(--d);font-size:16px;cursor:pointer}
+.add{width:100%;padding:11px;border:2px dashed var(--b);border-radius:8px;background:transparent;color:var(--a);font-family:"DM Sans",sans-serif;font-size:14px;font-weight:600;cursor:pointer}
+.ib{background:var(--al);border-left:3px solid var(--a);padding:11px 13px;border-radius:0 8px 8px 0;font-size:13px;color:var(--a);margin-bottom:15px;line-height:1.5}
+.sw2{background:var(--c);border:2px solid var(--b);border-radius:var(--r);overflow:hidden}
+.si{position:relative;min-height:180px;display:flex;align-items:center;justify-content:center}
+.si canvas{display:block;width:100%;touch-action:none}
+.sph{position:absolute;font-size:14px;color:#CBD5E1;pointer-events:none}
+.sa{display:flex;justify-content:flex-end;padding:8px 10px;border-top:1px solid var(--b)}
+.clr{padding:7px 14px;border:1px solid var(--b);border-radius:6px;background:#fff;color:var(--m);font-family:"DM Sans",sans-serif;font-size:13px;cursor:pointer}
+.sc{background:var(--c);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.sh2{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--a);margin-bottom:10px}
+.sr{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--b)}
+.sr:last-child{border-bottom:none;padding-bottom:0}
+.sl2{font-size:12px;color:var(--m);flex-shrink:0;margin-right:10px}
+.sv{font-size:13px;font-weight:600;text-align:right;word-break:break-word}
+.rn{display:inline-block;background:var(--al);color:var(--a);font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:16px;font-family:monospace}
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;padding:14px 16px;background:var(--bg);border-top:1px solid var(--b);z-index:15}
+.btn{width:100%;padding:16px;background:var(--a);color:#fff;border:none;border-radius:var(--r);font-family:"DM Sans",sans-serif;font-size:16px;font-weight:700;cursor:pointer}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn2{width:100%;padding:13px;background:transparent;color:var(--m);border:2px solid var(--b);border-radius:var(--r);font-family:"DM Sans",sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-top:9px;display:none}
+.ok{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 20px}
+.oi2{width:72px;height:72px;border-radius:50%;background:var(--sl);color:var(--s);font-size:38px;display:flex;align-items:center;justify-content:center;margin-bottom:20px;font-weight:700}
+.ot{font-size:24px;font-weight:700;margin-bottom:8px}
+.os{font-size:14px;color:var(--m);line-height:1.7;margin-bottom:28px}
+.os strong{color:var(--t)}
+.sp{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;margin-right:7px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.gr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="hdr">
+    <div class="brand"><b>GD</b>WATER &middot; Rapportino</div>
+    <div class="hlbl" id="slbl">Passo 1 di 5 - Dati cliente</div>
+    <div class="pb"><div class="pf" id="pf" style="width:20%"></div></div>
+  </div>
+
+  <div class="step on" id="s1">
+    <h1>Dati cliente</h1><p class="sub">Inserisci i dati del cliente</p>
+    <div class="box">
+      <div class="fg"><label>Nome / Ragione sociale *</label><input type="text" id="cn" placeholder="es. Hotel Bellavista" autocomplete="off"></div>
+      <div class="fg"><label>Indirizzo</label><input type="text" id="ci" placeholder="es. Via Roma 12, Venezia" autocomplete="off"></div>
+      <div class="fg"><label>Email cliente <span style="font-weight:400;text-transform:none;letter-spacing:0">(facoltativa &mdash; riceve copia del rapportino)</span></label><input type="email" id="ce" placeholder="es. info@cliente.it" autocomplete="off"></div>
+      <div class="fg"><label>Tipologia</label><div class="sw"><select id="ct"><option>Famiglia</option><option>Azienda</option><option>HoReCa</option><option>Comunita</option></select></div></div>
+      <div class="fg" style="margin-bottom:0"><label>Tecnico *</label><div class="sw"><select id="tec"><option value="">-- Seleziona tecnico --</option><option value="D'Attimis">D'Attimis</option><option value="Ecobay">Ecobay</option></select></div><div class="err" id="tec-err">Campo obbligatorio</div></div>
+    </div>
+  </div>
+
+  <div class="step" id="s2">
+    <h1>Attivita svolta</h1><p class="sub">Seleziona il tipo di intervento</p>
+    <div class="ag" id="ag"></div>
+    <div id="ad" style="display:none">
+      <div class="box">
+        <div id="ft"><div class="gr"><div class="fg"><label>Ora inizio</label><input type="time" id="oi2"></div><div class="fg"><label>Ora fine</label><input type="time" id="of2"></div></div></div>
+        <div id="qc"></div>
+        <div class="fg" style="margin-top:4px"><label>Note <span id="nr" style="color:var(--d);display:none">*</span></label><textarea id="nt" placeholder="Note aggiuntive..."></textarea><div class="err" id="ne">Campo obbligatorio per manutenzione straordinaria</div></div>
+      </div>
+      <!-- CAMPI EXTRA PER ATTIVITA -->
+      <div id="ex-manutenzione" class="box" style="display:none">
+        <div class="fg"><label>Matricola filtro *</label><input type="text" id="ex-mf" placeholder="es. F2024-0042" autocomplete="off"><div class="err" id="ex-mf-err">Campo obbligatorio</div></div>
+        <div class="fg" style="margin-bottom:0"><label>Tipo filtro *</label><div class="sw"><select id="ex-tf"><option value="">-- Seleziona --</option><option value="250">Filtro 250</option><option value="350">Filtro 350</option></select></div><div class="err" id="ex-tf-err">Campo obbligatorio</div></div>
+      </div>
+      <div id="ex-bombola" class="box" style="display:none">
+        <div class="fg" style="margin-bottom:0"><label>Peso bombola (kg) *</label><input type="number" id="ex-kb" placeholder="es. 10" min="1" autocomplete="off"><div class="err" id="ex-kb-err">Campo obbligatorio</div></div>
+      </div>
+      <div id="ex-installazione" class="box" style="display:none">
+        <div class="fg"><label>Matricola filtro *</label><input type="text" id="ex-mf2" placeholder="es. F2024-0042" autocomplete="off"><div class="err" id="ex-mf2-err">Campo obbligatorio</div></div>
+        <div class="fg" style="margin-bottom:0"><label>Tipo filtro *</label><div class="sw"><select id="ex-tf2"><option value="">-- Seleziona --</option><option value="250">Filtro 250</option><option value="350">Filtro 350</option></select></div><div class="err" id="ex-tf2-err">Campo obbligatorio</div></div>
+      </div>
+      <div id="ex-prelievo" class="box" style="display:none">
+        <div class="fg" style="margin-bottom:0"><label>Note</label><textarea id="ex-np" placeholder="Note sul prelievo..."></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="step" id="s3">
+    <h1>Impianto</h1><p class="sub">Dati tecnici e materiali utilizzati</p>
+    <div class="box">
+      <div class="fg"><label>Modello</label><input type="text" id="mo" placeholder="es. AquaPure 500"></div>
+      <div class="fg"><label>N. Seriale</label><input type="text" id="se" placeholder="es. AP500-2024-0042"></div>
+      <div class="fg" style="margin-bottom:0"><label>Data installazione</label><input type="date" id="di"></div>
+    </div>
+    <div class="sep"><span>Materiali utilizzati</span></div>
+    <div class="ml" id="ml"></div>
+    <button class="add" onclick="addM()">+ Aggiungi materiale / ricambio</button>
+  </div>
+
+  <div class="step" id="s4">
+    <h1>Firma cliente</h1><p class="sub">Il cliente approva l intervento firmando qui sotto</p>
+    <div class="ib">Girare lo schermo verso il cliente e farlo firmare nel riquadro.</div>
+    <div style="font-size:11px;color:var(--m);margin-bottom:12px;line-height:1.5">&#9432; I dati raccolti (nome, indirizzo, firma) saranno trattati da GD Water S.r.l. esclusivamente per documentare l'intervento di assistenza, ai sensi dell'art.6 c.1 lett.b GDPR.</div>
+    <div class="sw2"><div class="si"><div class="sph" id="sph">Firma qui</div><canvas id="sc2"></canvas></div><div class="sa"><button class="clr" onclick="clrS()">X Cancella firma</button></div></div>
+  </div>
+
+  <div class="step" id="s5">
+    <h1>Riepilogo</h1><p class="sub">Verifica i dati prima di inviare</p>
+    <div class="rn" id="rn"></div>
+    <div class="sc"><div class="sh2">Cliente</div><div id="rc"></div></div>
+    <div class="sc"><div class="sh2">Attivita</div><div id="ra"></div></div>
+    <div class="sc"><div class="sh2">Impianto</div><div id="ri"></div></div>
+    <div class="sc" id="rm" style="display:none"><div class="sh2">Materiali</div><div id="rml"></div></div>
+    <div style="height:8px"></div>
+  </div>
+
+  <div class="step" id="sok">
+    <div class="ok">
+      <div class="oi2">OK</div>
+      <div class="ot">Rapportino inviato!</div>
+      <div class="os">PDF scaricato sul dispositivo.<br>Email inviata a:<br><strong>service@gdwater.it</strong><br><strong>amministrazione@gdwater.it</strong></div>
+      <button class="btn" onclick="reset()" style="max-width:240px">+ Nuovo rapportino</button>
+    </div>
+  </div>
+
+  <div class="nav" id="nav">
+    <button class="btn" id="bn" onclick="next()">Continua</button>
+    <button class="btn2" id="bb" onclick="back()">Indietro</button>
+  </div>
+</div>
+<script>
+var LOGO='';
+
+var ATV=[
+  {id:1,n:'Manutenzione ordinaria con sostituzione filtro',t:'tempo',r:false,extra:'manutenzione'},
+  {id:2,n:'Consegna ed installazione bombola',t:'qty',u:'Bombole consegnate',r:false,extra:'bombola'},
+  {id:3,n:'Installazione impianto',t:'tempo',r:false,extra:'installazione'},
+  {id:4,n:'Prelievo acqua per analisi',t:'qty',u:'Campioni prelevati',r:false,extra:'prelievo'},
+  {id:5,n:'Manutenzione straordinaria',t:'tempo',r:true,extra:'none'}
+];
+var S=ns();
+function ns(){return{p:1,cl:{n:'',i:'',t:'Famiglia',e:''},tecnico:'',ats:[],oi:'',of:'',qs:{},nt:'',mo:'',se:'',di:'',mat:[],exs:{},sp:null,num:gn()};}
+function gn(){var d=new Date();return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'-'+(''+Math.floor(Math.random()*999)).padStart(3,'0');}
+function p2(n){return (''+n).padStart(2,'0');}
+var LBLS=['','Dati cliente','Tipo attivita','Impianto e Materiali','Firma cliente','Riepilogo'];
+function go(n){
+  document.querySelectorAll('.step').forEach(function(e){e.classList.remove('on');});
+  document.getElementById(n===6?'sok':'s'+n).classList.add('on');
+  window.scrollTo(0,0);
+  var nav=document.getElementById('nav'),bb=document.getElementById('bb'),bn=document.getElementById('bn');
+  if(n<=5){
+    document.getElementById('pf').style.width=(n*20)+'%';
+    document.getElementById('slbl').textContent='Passo '+n+' di 5 - '+LBLS[n];
+    nav.style.display='block';
+    bb.style.display=n>1?'block':'none';
+    bn.textContent=n===5?'Genera PDF e Invia':'Continua';
+  }else{
+    document.getElementById('pf').style.width='100%';
+    document.getElementById('slbl').textContent='Completato';
+    nav.style.display='none';
+  }
+  S.p=n;
+  if(n===4)iSig();
+  if(n===5)bSum();
+}
+function next(){if(val(S.p)){if(S.p===5){send();}else{go(S.p+1);}}}
+function back(){if(S.p>1)go(S.p-1);}
+function val(p){
+  if(p===1){
+    var n=document.getElementById('cn').value.trim();
+    if(!n){alert('Inserisci il nome del cliente.');return false;}
+    var tec=document.getElementById('tec').value;
+    if(!tec){document.getElementById('tec-err').style.display='block';return false;}
+    S.cl.n=n;S.cl.i=document.getElementById('ci').value.trim();S.cl.t=document.getElementById('ct').value;S.cl.e=document.getElementById('ce').value.trim();S.tecnico=tec;
+  }
+  if(p===2){
+    if(!S.ats.length){alert('Seleziona almeno una attivita.');return false;}
+    var hasTempo=S.ats.some(function(a){return a.t==='tempo';});
+    if(hasTempo){
+      var oi=document.getElementById('oi2').value,of=document.getElementById('of2').value;
+      if(!oi||!of){alert('Inserisci orario di inizio e fine.');return false;}
+      S.oi=oi;S.of=of;
+    }
+    S.qs={};
+    var qOk=true;
+    S.ats.filter(function(a){return a.t==='qty';}).forEach(function(a){
+      var el=document.getElementById('qv-'+a.id);
+      if(!el||!el.value||parseInt(el.value)<1){document.getElementById('qv-err-'+a.id).style.display='block';qOk=false;}
+      else S.qs[a.id]=el.value;
+    });
+    if(!qOk)return false;
+    var nt=document.getElementById('nt').value.trim();
+    var hasReq=S.ats.some(function(a){return a.r;});
+    if(hasReq&&!nt){document.getElementById('ne').style.display='block';return false;}
+    S.nt=nt;
+    S.exs={};
+    S.ats.forEach(function(a){
+      if(a.extra==='manutenzione'){
+        var mf=document.getElementById('ex-mf').value.trim(),tf=document.getElementById('ex-tf').value;
+        if(!mf){document.getElementById('ex-mf-err').style.display='block';return;}
+        if(!tf){document.getElementById('ex-tf-err').style.display='block';return;}
+        S.exs[a.id]={mf:mf,tf:tf};
+      }
+      if(a.extra==='bombola'){
+        var kb=document.getElementById('ex-kb').value;
+        if(!kb||parseInt(kb)<1){document.getElementById('ex-kb-err').style.display='block';return;}
+        S.exs[a.id]={kb:kb};
+      }
+      if(a.extra==='installazione'){
+        var mf2=document.getElementById('ex-mf2').value.trim(),tf2=document.getElementById('ex-tf2').value;
+        if(!mf2){document.getElementById('ex-mf2-err').style.display='block';return;}
+        if(!tf2){document.getElementById('ex-tf2-err').style.display='block';return;}
+        S.exs[a.id]={mf:mf2,tf:tf2};
+      }
+      if(a.extra==='prelievo'){
+        S.exs[a.id]={np:document.getElementById('ex-np').value.trim()};
+      }
+    });
+  }
+  if(p===3){
+    S.mo=document.getElementById('mo').value.trim();
+    S.se=document.getElementById('se').value.trim();
+    S.di=document.getElementById('di').value;
+    S.mat=[];
+    document.querySelectorAll('.mr').forEach(function(r){
+      var d=r.querySelector('.md').value.trim(),q=r.querySelector('.mq').value.trim();
+      if(d)S.mat.push({d:d,q:q||'1'});
+    });
+  }
+  if(p===4){if(!S.sp||S.sp.empty){alert('Il cliente deve firmare.');return false;}}
+  return true;
+}
+function rAt(){
+  document.getElementById('ag').innerHTML=ATV.map(function(a){
+    var sel=S.ats.some(function(x){return x.id===a.id;});
+    return '<button class="ab'+(sel?' on':'')+'" onclick="tAt('+a.id+')"><span class="an">'+a.n+'</span></button>';
+  }).join('');
+}
+function tAt(id){
+  var idx=S.ats.findIndex(function(x){return x.id===id;});
+  if(idx>=0){S.ats.splice(idx,1);}else{S.ats.push(ATV.find(function(a){return a.id===id;}));}
+  rAt();upFields();
+}
+function upFields(){
+  var any=S.ats.length>0;
+  document.getElementById('ad').style.display=any?'block':'none';
+  var hasTempo=S.ats.some(function(a){return a.t==='tempo';});
+  var hasReq=S.ats.some(function(a){return a.r;});
+  document.getElementById('ft').style.display=hasTempo?'block':'none';
+  document.getElementById('nr').style.display=hasReq?'inline':'none';
+  document.getElementById('ne').style.display='none';
+  // dynamic qty rows
+  var qc=document.getElementById('qc');qc.innerHTML='';
+  S.ats.filter(function(a){return a.t==='qty';}).forEach(function(a){
+    var d=document.createElement('div');d.className='fg';
+    d.innerHTML='<label>'+a.u+' *</label><input type="number" id="qv-'+a.id+'" min="1" placeholder="0"><div class="err" id="qv-err-'+a.id+'">Campo obbligatorio</div>';
+    qc.appendChild(d);
+  });
+  // extra panels
+  ['ex-manutenzione','ex-bombola','ex-installazione','ex-prelievo'].forEach(function(x){document.getElementById(x).style.display='none';});
+  S.ats.forEach(function(a){
+    if(a.extra&&a.extra!=='none'){document.getElementById('ex-'+a.extra).style.display='block';}
+  });
+}
+function addM(){
+  var r=document.createElement('div');
+  r.className='mr';
+  r.innerHTML='<input type="text" class="md" placeholder="Descrizione"><input type="number" class="mq" placeholder="Qta" min="1"><button class="xb" onclick="this.parentElement.remove()">X</button>';
+  document.getElementById('ml').appendChild(r);
+}
+function iSig(){
+  var c=document.getElementById('sc2');
+  var si=c.closest('.si');
+  var W=si.clientWidth||400;
+  var H=180;
+  var dpr=window.devicePixelRatio||1;
+  c.width=W*dpr;c.height=H*dpr;
+  c.style.width=W+'px';c.style.height=H+'px';
+  var ctx=c.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.strokeStyle='#0A1C3B';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.lineJoin='round';
+  S.sp={canvas:c,ctx:ctx,drawing:false,empty:true,dpr:dpr};
+  function getPos(e){
+    var r=c.getBoundingClientRect();
+    var src=e.touches?e.touches[0]:e;
+    return{x:src.clientX-r.left,y:src.clientY-r.top};
+  }
+  function start(e){e.preventDefault();var p=getPos(e);S.sp.drawing=true;S.sp.ctx.beginPath();S.sp.ctx.moveTo(p.x,p.y);document.getElementById('sph').style.display='none';S.sp.empty=false;}
+  function move(e){e.preventDefault();if(!S.sp.drawing)return;var p=getPos(e);S.sp.ctx.lineTo(p.x,p.y);S.sp.ctx.stroke();}
+  function stop(e){S.sp.drawing=false;}
+  c.removeEventListener('mousedown',c._ms);c.removeEventListener('mousemove',c._mm);c.removeEventListener('mouseup',c._mu);
+  c.removeEventListener('touchstart',c._ts);c.removeEventListener('touchmove',c._tm);c.removeEventListener('touchend',c._te);
+  c._ms=start;c._mm=move;c._mu=stop;c._ts=start;c._tm=move;c._te=stop;
+  c.addEventListener('mousedown',start);c.addEventListener('mousemove',move);c.addEventListener('mouseup',stop);
+  c.addEventListener('touchstart',start,{passive:false});c.addEventListener('touchmove',move,{passive:false});c.addEventListener('touchend',stop);
+}
+function clrS(){
+  if(S.sp){
+    var c=S.sp.canvas,dpr=S.sp.dpr;
+    S.sp.ctx.clearRect(0,0,c.width/dpr,c.height/dpr);
+    S.sp.empty=true;
+    document.getElementById('sph').style.display='block';
+  }
+}
+function fd(d){if(!d)return '-';var p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0];}
+function ft(){var d=new Date();return p2(d.getDate())+'/'+p2(d.getMonth()+1)+'/'+d.getFullYear();}
+function fn(){var d=new Date();return p2(d.getHours())+':'+p2(d.getMinutes());}
+function sr(l,v){return '<div class="sr"><span class="sl2">'+l+'</span><span class="sv">'+(v||'-')+'</span></div>';}
+function bSum(){
+  document.getElementById('rn').textContent='N. '+S.num;
+  document.getElementById('rc').innerHTML=sr('Tecnico',S.tecnico)+sr('Nome',S.cl.n)+sr('Indirizzo',S.cl.i||'-')+sr('Tipo',S.cl.t)+(S.cl.e?sr('Email',S.cl.e):'');
+  var hasTempo=S.ats.some(function(a){return a.t==='tempo';});
+  var rows='';
+  if(hasTempo)rows+=sr('Orario',S.oi+' - '+S.of);
+  S.ats.forEach(function(a){
+    rows+=sr('Attivita',a.n);
+    if(a.t==='qty'&&S.qs[a.id])rows+=sr(a.u,S.qs[a.id]);
+    var ex=S.exs[a.id];
+    if(ex){
+      if(ex.mf)rows+=sr('Matr. filtro',ex.mf);
+      if(ex.tf)rows+=sr('Tipo filtro','Filtro '+ex.tf);
+      if(ex.kb)rows+=sr('Peso bombola',ex.kb+' kg');
+      if(ex.np)rows+=sr('Note prelievo',ex.np);
+    }
+  });
+  if(S.nt)rows+=sr('Note',S.nt);
+  document.getElementById('ra').innerHTML=rows;
+  document.getElementById('ri').innerHTML=sr('Modello',S.mo||'-')+sr('Seriale',S.se||'-')+sr('Data inst.',fd(S.di));
+  var rm=document.getElementById('rm');
+  if(S.mat.length){rm.style.display='block';document.getElementById('rml').innerHTML=S.mat.map(function(m){return sr(m.d,'x'+m.q);}).join('');}
+  else rm.style.display='none';
+}
+function mkPDF(){
+  var J=window.jspdf.jsPDF;
+  var doc=new J({orientation:'portrait',unit:'mm',format:'a4'});
+  var mL=20,pW=210,cW=170,y=20;
+  var Cp=[10,28,59],Ca=[29,94,255],Ct=[15,23,42],Cm=[100,116,139],Cb=[226,232,240],Cbg=[241,245,249];
+  doc.setFillColor(Cp[0],Cp[1],Cp[2]);doc.rect(0,0,pW,32,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(16);
+  doc.text('GD',mL,14);
+  doc.setTextColor(44,188,189);doc.setFontSize(10);doc.setFont('helvetica','bold');
+  doc.text('WATER',mL+11,14);
+  doc.setTextColor(150,185,255);doc.setFont('helvetica','normal');doc.setFontSize(8);
+  doc.text('Rapportino di Lavoro',mL,22);
+  doc.setTextColor(255,255,255);doc.setFontSize(8);
+  doc.text('N. '+S.num,pW-mL,13,{align:'right'});
+  doc.text(ft()+'  ore '+fn(),pW-mL,21,{align:'right'});
+  y=42;
+  function sh(txt){
+    doc.setFillColor(Cbg[0],Cbg[1],Cbg[2]);doc.rect(mL,y,cW,7,'F');
+    doc.setTextColor(Ca[0],Ca[1],Ca[2]);doc.setFont('helvetica','bold');doc.setFontSize(7.5);
+    doc.text(txt,mL+3,y+5);y+=11;
+  }
+  function rw(l,v,last){
+    doc.setTextColor(Cm[0],Cm[1],Cm[2]);doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(l,mL+3,y);
+    doc.setTextColor(Ct[0],Ct[1],Ct[2]);doc.setFont('helvetica','bold');
+    var ln=doc.splitTextToSize(String(v||'-'),cW-55);doc.text(ln,mL+52,y);
+    if(!last){doc.setDrawColor(Cb[0],Cb[1],Cb[2]);doc.setLineWidth(.25);doc.line(mL,y+2.5,mL+cW,y+2.5);}
+    y+=Math.max(7,ln.length*5.5);
+  }
+  sh('DATI CLIENTE');rw('Tecnico',S.tecnico,false);rw('Nome',S.cl.n,false);rw('Indirizzo',S.cl.i||'-',false);rw('Tipologia',S.cl.t,true);y+=5;
+  sh('ATTIVITA SVOLTA');
+  var hasTempo=S.ats.some(function(a){return a.t==='tempo';});
+  if(hasTempo){rw('Ora inizio',S.oi,false);rw('Ora fine',S.of,false);}
+  S.ats.forEach(function(a,ai){
+    var isLast=ai===S.ats.length-1&&!S.nt;
+    rw('Attivita',a.n,false);
+    if(a.t==='qty'&&S.qs[a.id])rw(a.u,S.qs[a.id],false);
+    var ex=S.exs[a.id];
+    if(ex){
+      if(ex.mf)rw('Matr. filtro',ex.mf,false);
+      if(ex.tf)rw('Tipo filtro','Filtro '+ex.tf,false);
+      if(ex.kb)rw('Peso bombola',ex.kb+' kg',false);
+      if(ex.np)rw('Note prelievo',ex.np,false);
+    }
+  });
+  if(S.nt)rw('Note',S.nt,true);
+  y+=5;
+  sh('DATI IMPIANTO');rw('Modello',S.mo||'-',false);rw('N. Seriale',S.se||'-',false);rw('Data installazione',fd(S.di),true);y+=5;
+  if(S.mat.length){sh('MATERIALI UTILIZZATI');S.mat.forEach(function(m,i){rw(m.d,'x'+m.q,i===S.mat.length-1);});y+=5;}
+  sh('APPROVAZIONE CLIENTE');
+  doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(Cm[0],Cm[1],Cm[2]);
+  var at='Il cliente dichiara di aver verificato i lavori eseguiti e di approvarli.';
+  var al=doc.splitTextToSize(at,cW-6);doc.text(al,mL+3,y);y+=al.length*5+8;
+  doc.addImage(S.sp.canvas.toDataURL('image/png'),'PNG',mL,y,80,30);
+  doc.setDrawColor(Cb[0],Cb[1],Cb[2]);doc.setLineWidth(.4);doc.line(mL,y+32,mL+80,y+32);
+  doc.setTextColor(Cm[0],Cm[1],Cm[2]);doc.setFontSize(7.5);doc.setFont('helvetica','normal');
+  doc.text('Firma del cliente',mL,y+37);doc.text('Data: '+ft(),mL+90,y+37);
+  doc.setFillColor(Cp[0],Cp[1],Cp[2]);doc.rect(0,285,pW,12,'F');
+  doc.setTextColor(130,170,255);doc.setFontSize(6.5);
+  doc.text('GD Water - Servizi post-vendita impianti erogazione acqua uso alimentare',105,292,{align:'center'});
+  return doc;
+}
+function send(){
+  var btn=document.getElementById('bn');
+  btn.disabled=true;
+  btn.innerHTML='<span class="sp"></span>Generazione...';
+
+  setTimeout(function(){
+    var pdfB64=null, doc=null, fname=null;
+
+    // 1. Genera PDF
+    try{
+      doc=mkPDF();
+      fname='Rapportino_'+S.num+'_'+S.cl.n.replace(/\s+/g,'_')+'.pdf';
+      pdfB64=doc.output('datauristring').split(',')[1];
+    }catch(e){
+      console.warn('PDF error:',e);
+    }
+
+    // 2. Vai SUBITO a schermata OK
+    btn.disabled=false;
+    btn.textContent='Genera PDF e Invia';
+    go(6);
+
+    // 3. Download PDF in background con piccolo delay
+    if(doc){
+      setTimeout(function(){
+        try{doc.save(fname);}catch(e){console.warn('save:',e);}
+      },300);
+    }
+
+    // 4. Email in background
+    if(pdfB64){
+      setTimeout(function(){
+        fetch('/api/send-report',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            pdf:pdfB64,
+            data:{
+              num:S.num,oggi:ft(),tecnico:S.tecnico,
+              cliente:S.cl.n,indirizzo:S.cl.i||'-',tipo:S.cl.t,emailCliente:S.cl.e||'',
+              ats:S.ats,orario:S.oi?S.oi+'-'+S.of:'-',
+              note:S.nt||'Nessuna',modello:S.mo||'-',seriale:S.se||'-',
+              materiali:S.mat.map(function(m){return m.d+' x'+m.q;}).join(', ')||'Nessuno'
+            }
+          })
+        }).then(function(r){
+          console.log('email ok:',r.status);
+        }).catch(function(e){
+          console.error('email error:',e);
+        });
+      },500);
+    }
+
+  },100);
+}
+
+function reset(){
+  S=ns();S.ats=[];S.qs={};S.exs={};
+  document.getElementById('cn').value='';
+  document.getElementById('ci').value='';
+  document.getElementById('ct').value='Famiglia';
+  document.getElementById('ce').value='';
+  document.getElementById('tec').value='';
+  document.getElementById('tec-err').style.display='none';
+  document.getElementById('ml').innerHTML='';
+  document.getElementById('ad').style.display='none';document.getElementById('qc').innerHTML='';
+  document.getElementById('ne').style.display='none';
+  ['ex-manutenzione','ex-bombola','ex-installazione','ex-prelievo'].forEach(function(x){document.getElementById(x).style.display='none';});
+  ['ex-mf','ex-mf2','ex-kb'].forEach(function(x){var el=document.getElementById(x);if(el)el.value='';});
+  ['ex-tf','ex-tf2'].forEach(function(x){var el=document.getElementById(x);if(el)el.value='';});
+  if(document.getElementById('ex-np'))document.getElementById('ex-np').value='';
+  ['ex-mf-err','ex-mf2-err','ex-tf-err','ex-tf2-err','ex-kb-err'].forEach(function(x){var el=document.getElementById(x);if(el)el.style.display='none';});
+  rAt();go(1);
+}
+rAt();go(1);
+</script>
+</body>
+</html>

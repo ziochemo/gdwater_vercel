@@ -1,8 +1,3 @@
-bash
-
-cat /home/claude/gdwater_vercel/api/send-report.js
-Output
-
 const { Resend } = require('resend');
 
 const TEC_MAIL = {

@@ -1,3 +1,8 @@
+bash
+
+cat /home/claude/gdwater_vercel/api/send-report.js
+Output
+
 const { Resend } = require('resend');
 
 const TEC_MAIL = {
@@ -15,7 +20,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const { pdf, data } = req.body;
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    const resend = new Resend(process.env.RESEND_API_KEY || 're_fjrR2SAP_MHjK7ah8TxPgo1jR12NPrgEY');
 
     const to = ['service@gdwater.it', 'amministrazione@gdwater.it'];
     if (data.emailCliente && data.emailCliente.trim()) to.push(data.emailCliente.trim());

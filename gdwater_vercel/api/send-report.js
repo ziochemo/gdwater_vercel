@@ -1,13 +1,9 @@
 const { Resend } = require('resend');
 
 /* ============================================================
-   CONFIGURAZIONE
+   CONFIGURAZIONE — entrambe come variabili d'ambiente su Vercel
    ============================================================ */
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
-if (!RESEND_KEY) console.warn('[RESEND] variabile RESEND_API_KEY NON impostata');
-
-// URL del Google Apps Script che scrive il log sul foglio.
-// Lascialo vuoto finche non hai creato lo script: il resto funziona comunque.
 const SHEET_URL  = process.env.SHEET_WEBHOOK_URL || '';
 
 const TEC_MAIL = {
@@ -18,35 +14,34 @@ const TEC_MAIL = {
 const UFFICIO = ['service@gdwater.it', 'amministrazione@gdwater.it'];
 
 /* ============================================================
-   LOG SU FOGLIO — non deve mai bloccare l'invio
+   REGISTRO SUL FOGLIO
+   Non deve mai bloccare l'invio: tetto di 7 secondi, e in caso
+   di problemi si va avanti comunque.
    ============================================================ */
-async function logRow(row) {
+async function sheetCall(payload) {
   if (!SHEET_URL) {
-    console.log('[SHEET] variabile SHEET_WEBHOOK_URL NON impostata - log saltato');
-    return;
+    console.log('[SHEET] SHEET_WEBHOOK_URL non impostata - registro saltato');
+    return null;
   }
   const t0 = Date.now();
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 7000);   // tetto duro: la funzione non resta mai appesa
+  const timer = setTimeout(() => ctrl.abort(), 7000);
   try {
     const r = await fetch(SHEET_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(row),
+      body: JSON.stringify(payload),
       redirect: 'follow',
       signal: ctrl.signal
     });
     const testo = await r.text();
-    console.log('[SHEET] HTTP', r.status, 'in', Date.now() - t0, 'ms | risposta:', testo.slice(0, 200));
-    if (testo.indexOf('"ok":true') === -1) {
-      console.warn('[SHEET] lo script NON ha confermato la scrittura');
-    }
+    console.log('[SHEET]', payload.action, '-> HTTP', r.status, 'in', Date.now() - t0, 'ms |', testo.slice(0, 160));
+    try { return JSON.parse(testo); } catch (e) { return null; }
   } catch (e) {
-    if (e.name === 'AbortError') {
-      console.warn('[SHEET] TIMEOUT dopo 7s - riga non scritta, email comunque inviata');
-    } else {
-      console.warn('[SHEET] chiamata fallita dopo', Date.now() - t0, 'ms:', e.message);
-    }
+    console.warn('[SHEET]', payload.action, e.name === 'AbortError'
+      ? 'TIMEOUT dopo 7s'
+      : 'errore: ' + e.message);
+    return null;
   } finally {
     clearTimeout(timer);
   }
@@ -61,20 +56,44 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST')    { res.status(405).end(); return; }
 
   let data = {};
+  let to = [];
+
   try {
     const body = req.body;
     data = body.data || {};
     const pdf = body.pdf;
 
-    const to = UFFICIO.slice();
+    const attivitaTxt = Array.isArray(data.ats)
+      ? data.ats.map(a => a.n).join(' + ')
+      : String(data.ats || '');
+
+    const anagrafica = {
+      num: data.num, ts: new Date().toISOString(),
+      data: data.oggi, ora: data.ora,
+      tecnico: data.tecnico, cliente: data.cliente,
+      attivita: attivitaTxt, tentativi: data.tentativi || 1
+    };
+
+    /* ---- 1. PRENOTAZIONE: questo numero e gia stato spedito? ---- */
+    const claim = await sheetCall(Object.assign({ action: 'claim' }, anagrafica));
+
+    if (claim && claim.duplicate) {
+      console.log('[DEDUP] rapportino', data.num, 'gia inviato in precedenza - non rispedito');
+      res.status(200).json({ ok: true, duplicate: true });
+      return;
+    }
+    if (!claim) {
+      // Il foglio non risponde. Meglio un doppione che un rapportino perso.
+      console.warn('[DEDUP] registro non raggiungibile: procedo senza controllo duplicati');
+    }
+
+    /* ---- 2. DESTINATARI ---- */
+    to = UFFICIO.slice();
     if (data.emailCliente && String(data.emailCliente).trim()) to.push(String(data.emailCliente).trim());
     if (data.tecnico && TEC_MAIL[data.tecnico]) to.push(TEC_MAIL[data.tecnico]);
 
-    const attivita = Array.isArray(data.ats)
+    const attivitaHtml = Array.isArray(data.ats)
       ? data.ats.map(a => a.n).join('<br>')
-      : String(data.ats || '');
-    const attivitaTxt = Array.isArray(data.ats)
-      ? data.ats.map(a => a.n).join(' + ')
       : String(data.ats || '');
 
     const html = `
@@ -91,13 +110,13 @@ module.exports = async function handler(req, res) {
              <strong>Tipologia:</strong> ${data.tipo}
              ${data.emailCliente ? '<br><strong>Email:</strong> ' + data.emailCliente : ''}</p>
           <hr style="border:none;border-top:1px solid #E2E8F0;margin:12px 0">
-          <p><strong>Attivita:</strong><br>${attivita}</p>
+          <p><strong>Attivita:</strong><br>${attivitaHtml}</p>
           <p><strong>Orario:</strong> ${data.orario}</p>
           ${data.note && data.note !== 'Nessuna' ? '<p><strong>Note:</strong> ' + data.note + '</p>' : ''}
           <hr style="border:none;border-top:1px solid #E2E8F0;margin:12px 0">
           <p><strong>Impianto</strong><br>Modello: ${data.modello}<br>N. Seriale: ${data.seriale}</p>
           ${data.materiali && data.materiali !== 'Nessuno' ? '<p><strong>Materiali:</strong> ' + data.materiali + '</p>' : ''}
-          ${data.tentativi && data.tentativi > 1 ? '<p style="font-size:12px;color:#92400E;background:#FEF3C7;padding:8px 10px;border-radius:6px">Invio differito: questo rapportino era rimasto in coda sul dispositivo del tecnico (tentativo ' + data.tentativi + ').</p>' : ''}
+          ${data.tentativi && data.tentativi > 1 ? '<p style="font-size:12px;color:#92400E;background:#FEF3C7;padding:8px 10px;border-radius:6px">Invio differito: il rapportino era rimasto in coda sul dispositivo del tecnico (tentativo ' + data.tentativi + ').</p>' : ''}
           <hr style="border:none;border-top:1px solid #E2E8F0;margin:12px 0">
           <p style="font-size:12px;color:#64748B">Il rapportino firmato e allegato in PDF.</p>
         </div>
@@ -105,6 +124,9 @@ module.exports = async function handler(req, res) {
           <p style="color:#5B9BFF;font-size:11px;margin:0">GD Water &middot; Servizi post-vendita impianti acqua uso alimentare</p>
         </div>
       </div>`;
+
+    /* ---- 3. INVIO ---- */
+    if (!RESEND_KEY) throw new Error('RESEND_API_KEY non impostata su Vercel');
 
     const resend = new Resend(RESEND_KEY);
     const sent = await resend.emails.send({
@@ -120,13 +142,10 @@ module.exports = async function handler(req, res) {
 
     if (sent && sent.error) throw new Error(sent.error.message || JSON.stringify(sent.error));
 
-    await logRow({
-      ts: new Date().toISOString(),
-      num: data.num, data: data.oggi, ora: data.ora,
-      tecnico: data.tecnico, cliente: data.cliente,
-      attivita: attivitaTxt, esito: 'INVIATA',
-      destinatari: to.join(', '),
-      tentativi: data.tentativi || 1, errore: ''
+    /* ---- 4. ESITO ---- */
+    await sheetCall({
+      action: 'result', num: data.num, esito: 'INVIATA',
+      destinatari: to.join(', '), errore: '', tentativi: data.tentativi || 1
     });
 
     res.status(200).json({ ok: true, recipients: to });
@@ -134,12 +153,11 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     console.error('send-report error:', err);
 
-    await logRow({
-      ts: new Date().toISOString(),
-      num: data.num || '?', data: data.oggi || '', ora: data.ora || '',
-      tecnico: data.tecnico || '', cliente: data.cliente || '',
-      attivita: '', esito: 'ERRORE', destinatari: '',
-      tentativi: data.tentativi || 1, errore: String(err.message || err).slice(0, 300)
+    await sheetCall({
+      action: 'result', num: data.num || '?', esito: 'ERRORE',
+      destinatari: to.join(', '),
+      errore: String(err.message || err).slice(0, 300),
+      tentativi: data.tentativi || 1
     });
 
     res.status(500).json({ error: String(err.message || err) });

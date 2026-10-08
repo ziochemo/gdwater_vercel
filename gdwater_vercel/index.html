@@ -188,6 +188,7 @@ function nextNum(tec){
 
 /* ---------- coda locale con retry ---------- */
 var QK='gdw_queue';
+var qSending={};   /* rapportini con un invio gia in volo: evita i doppioni */
 function qGet(){try{return JSON.parse(localStorage.getItem(QK)||'[]');}catch(e){return [];}}
 function qSet(a){try{localStorage.setItem(QK,JSON.stringify(a));}catch(e){console.warn('queue full',e);}}
 function qAdd(j){var a=qGet();a.push(j);qSet(a);qBar();}
@@ -202,13 +203,19 @@ function qBar(){
     : a.length+' rapportini non ancora inviati';
 }
 function postJob(j,cb){
+  if(qSending[j.num]){console.log('gia in invio, salto',j.num);cb(false);return;}
   var pdf=null;
   try{pdf=mkPDF(j).output('datauristring').split(',')[1];}
   catch(e){console.warn('pdf retry fail',e);cb(false);return;}
+  qSending[j.num]=true;
   fetch('/api/send-report',{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({pdf:pdf,data:jobToPayload(j)})
-  }).then(function(r){cb(r.ok);}).catch(function(e){console.warn('post fail',e);cb(false);});
+  }).then(function(r){
+    delete qSending[j.num];cb(r.ok);
+  }).catch(function(e){
+    delete qSending[j.num];console.warn('post fail',e);cb(false);
+  });
 }
 function jobToPayload(j){
   return {
@@ -544,15 +551,17 @@ function send(){
 
     // 6. invio: se riesce esce dalla coda, altrimenti resta e riparte da solo
     if(pdfB64){
+      qSending[job.num]=true;
       fetch('/api/send-report',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({pdf:pdfB64,data:jobToPayload(job)})
       }).then(function(r){
+        delete qSending[job.num];
         if(r.ok){
           qDel(job.num);
           document.getElementById('okmsg').innerHTML='PDF scaricato sul dispositivo.<br>Email inviata a:<br><strong>service@gdwater.it</strong><br><strong>amministrazione@gdwater.it</strong>';
         }else{ okPending(r.status); }
-      }).catch(function(e){console.warn('email error:',e);okPending('offline');});
+      }).catch(function(e){delete qSending[job.num];console.warn('email error:',e);okPending('offline');});
     }else{ okPending('pdf'); }
   },100);
 }

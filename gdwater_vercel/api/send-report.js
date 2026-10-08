@@ -3,7 +3,8 @@ const { Resend } = require('resend');
 /* ============================================================
    CONFIGURAZIONE
    ============================================================ */
-const RESEND_KEY = process.env.RESEND_API_KEY || 're_fjrR2SAP_MHjK7ah8TxPgo1jR12NPrgEY';
+const RESEND_KEY = process.env.RESEND_API_KEY || '';
+if (!RESEND_KEY) console.warn('[RESEND] variabile RESEND_API_KEY NON impostata');
 
 // URL del Google Apps Script che scrive il log sul foglio.
 // Lascialo vuoto finche non hai creato lo script: il resto funziona comunque.
@@ -20,15 +21,25 @@ const UFFICIO = ['service@gdwater.it', 'amministrazione@gdwater.it'];
    LOG SU FOGLIO — non deve mai bloccare l'invio
    ============================================================ */
 async function logRow(row) {
-  if (!SHEET_URL) return;
+  if (!SHEET_URL) {
+    console.log('[SHEET] variabile SHEET_WEBHOOK_URL NON impostata — log saltato');
+    return;
+  }
+  console.log('[SHEET] invio a:', SHEET_URL.slice(0, 60) + '...');
   try {
-    await fetch(SHEET_URL, {
+    const r = await fetch(SHEET_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(row)
+      body: JSON.stringify(row),
+      redirect: 'follow'
     });
+    const testo = await r.text();
+    console.log('[SHEET] risposta HTTP', r.status, '| primi 200 caratteri:', testo.slice(0, 200));
+    if (testo.indexOf('"ok":true') === -1) {
+      console.warn('[SHEET] ATTENZIONE: lo script non ha confermato la scrittura.');
+    }
   } catch (e) {
-    console.warn('sheet log failed:', e.message);
+    console.warn('[SHEET] chiamata fallita:', e.message);
   }
 }
 

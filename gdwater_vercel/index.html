@@ -75,6 +75,11 @@ textarea{resize:vertical;min-height:75px}
     <div class="pb"><div class="pf" id="pf" style="width:20%"></div></div>
   </div>
 
+  <div id="qbar" style="background:#FEF3C7;border-bottom:1px solid #FCD34D;padding:10px 16px;font-size:13px;color:#92400E;display:none">
+    <span id="qtxt"></span>
+    <button id="qbtn" onclick="flushQueue(true)" style="margin-left:8px;padding:4px 10px;border:1px solid #92400E;border-radius:6px;background:#fff;color:#92400E;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer">Riprova ora</button>
+  </div>
+
   <div class="step on" id="s1">
     <h1>Dati cliente</h1><p class="sub">Inserisci i dati del cliente</p>
     <div class="box">
@@ -144,9 +149,10 @@ textarea{resize:vertical;min-height:75px}
 
   <div class="step" id="sok">
     <div class="ok">
-      <div class="oi2">OK</div>
-      <div class="ot">Rapportino inviato!</div>
-      <div class="os">PDF scaricato sul dispositivo.<br>Email inviata a:<br><strong>service@gdwater.it</strong><br><strong>amministrazione@gdwater.it</strong></div>
+      <div class="oi2" id="okico">OK</div>
+      <div class="ot" id="oktit">Rapportino registrato</div>
+      <div class="rn" id="oknum" style="margin:0 0 14px"></div>
+      <div class="os" id="okmsg">Invio in corso...</div>
       <button class="btn" onclick="reset()" style="max-width:240px">+ Nuovo rapportino</button>
     </div>
   </div>
@@ -166,10 +172,74 @@ var ATV=[
   {id:4,n:'Prelievo acqua per analisi',t:'qty',u:'Campioni prelevati',r:false,extra:'prelievo'},
   {id:5,n:'Manutenzione straordinaria',t:'tempo',r:true,extra:'none'}
 ];
+var TECP={"D'Attimis":"DAT","Ecobay":"ECO"};
 var S=ns();
-function ns(){return{p:1,cl:{n:'',i:'',t:'Famiglia',e:''},tecnico:'',ats:[],oi:'',of:'',qs:{},nt:'',mo:'',se:'',di:'',mat:[],exs:{},sp:null,num:gn()};}
-function gn(){var d=new Date();return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'-'+(''+Math.floor(Math.random()*999)).padStart(3,'0');}
+function ns(){return{p:1,cl:{n:'',i:'',t:'Famiglia',e:''},tecnico:'',ats:[],oi:'',of:'',qs:{},nt:'',mo:'',se:'',di:'',mat:[],exs:{},sp:null,sigImg:'',num:''};}
 function p2(n){return (''+n).padStart(2,'0');}
+
+/* ---------- numerazione progressiva per tecnico ---------- */
+function nextNum(tec){
+  var pre=TECP[tec]||'GDW', k='gdw_seq_'+pre, n=0;
+  try{n=parseInt(localStorage.getItem(k)||'0',10)||0;}catch(e){}
+  n++;
+  try{localStorage.setItem(k,String(n));}catch(e){}
+  return pre+'-'+(''+n).padStart(4,'0');
+}
+
+/* ---------- coda locale con retry ---------- */
+var QK='gdw_queue';
+function qGet(){try{return JSON.parse(localStorage.getItem(QK)||'[]');}catch(e){return [];}}
+function qSet(a){try{localStorage.setItem(QK,JSON.stringify(a));}catch(e){console.warn('queue full',e);}}
+function qAdd(j){var a=qGet();a.push(j);qSet(a);qBar();}
+function qDel(num){qSet(qGet().filter(function(x){return x.num!==num;}));qBar();}
+function qBar(){
+  var a=qGet(), el=document.getElementById('qbar');
+  if(!el)return;
+  if(!a.length){el.style.display='none';return;}
+  el.style.display='block';
+  document.getElementById('qtxt').textContent=a.length===1
+    ? '1 rapportino non ancora inviato ('+a[0].num+')'
+    : a.length+' rapportini non ancora inviati';
+}
+function postJob(j,cb){
+  var pdf=null;
+  try{pdf=mkPDF(j).output('datauristring').split(',')[1];}
+  catch(e){console.warn('pdf retry fail',e);cb(false);return;}
+  fetch('/api/send-report',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({pdf:pdf,data:jobToPayload(j)})
+  }).then(function(r){cb(r.ok);}).catch(function(e){console.warn('post fail',e);cb(false);});
+}
+function jobToPayload(j){
+  return {
+    num:j.num,oggi:j.oggi,ora:j.ora,tecnico:j.tecnico,
+    cliente:j.cl.n,indirizzo:j.cl.i||'-',tipo:j.cl.t,emailCliente:j.cl.e||'',
+    ats:j.ats,orario:j.oi?j.oi+'-'+j.of:'-',
+    note:j.nt||'Nessuna',modello:j.mo||'-',seriale:j.se||'-',
+    materiali:(j.mat||[]).map(function(m){return m.d+' x'+m.q;}).join(', ')||'Nessuno',
+    tentativi:(j.tries||0)+1
+  };
+}
+function flushQueue(manual){
+  var a=qGet();
+  if(!a.length){if(manual)alert('Nessun rapportino in attesa.');return;}
+  var btn=document.getElementById('qbtn');
+  if(btn){btn.disabled=true;btn.textContent='Invio...';}
+  var left=a.length,ok=0;
+  a.forEach(function(j){
+    j.tries=(j.tries||0)+1;
+    postJob(j,function(good){
+      if(good){qDel(j.num);ok++;}
+      else{var cur=qGet();for(var i=0;i<cur.length;i++){if(cur[i].num===j.num)cur[i].tries=j.tries;}qSet(cur);}
+      left--;
+      if(left===0){
+        qBar();
+        if(btn){btn.disabled=false;btn.textContent='Riprova ora';}
+        if(manual)alert(ok+' rapportino/i inviato/i. '+qGet().length+' ancora in attesa.');
+      }
+    });
+  });
+}
 var LBLS=['','Dati cliente','Tipo attivita','Impianto e Materiali','Firma cliente','Riepilogo'];
 function go(n){
   document.querySelectorAll('.step').forEach(function(e){e.classList.remove('on');});
@@ -255,7 +325,10 @@ function val(p){
       if(d)S.mat.push({d:d,q:q||'1'});
     });
   }
-  if(p===4){if(!S.sp||S.sp.empty){alert('Il cliente deve firmare.');return false;}}
+  if(p===4){
+    if(!S.sp||S.sp.empty){alert('Il cliente deve firmare.');return false;}
+    S.sigImg=sigToJpeg(S.sp.canvas);
+  }
   return true;
 }
 function rAt(){
@@ -335,7 +408,7 @@ function ft(){var d=new Date();return p2(d.getDate())+'/'+p2(d.getMonth()+1)+'/'
 function fn(){var d=new Date();return p2(d.getHours())+':'+p2(d.getMinutes());}
 function sr(l,v){return '<div class="sr"><span class="sl2">'+l+'</span><span class="sv">'+(v||'-')+'</span></div>';}
 function bSum(){
-  document.getElementById('rn').textContent='N. '+S.num;
+  document.getElementById('rn').textContent='Numero assegnato all\'invio';
   document.getElementById('rc').innerHTML=sr('Tecnico',S.tecnico)+sr('Nome',S.cl.n)+sr('Indirizzo',S.cl.i||'-')+sr('Tipo',S.cl.t)+(S.cl.e?sr('Email',S.cl.e):'');
   var hasTempo=S.ats.some(function(a){return a.t==='tempo';});
   var rows='';
@@ -358,9 +431,19 @@ function bSum(){
   if(S.mat.length){rm.style.display='block';document.getElementById('rml').innerHTML=S.mat.map(function(m){return sr(m.d,'x'+m.q);}).join('');}
   else rm.style.display='none';
 }
-function mkPDF(){
+function sigToJpeg(src){
+  try{
+    var w=420,h=158;
+    var c2=document.createElement('canvas');c2.width=w;c2.height=h;
+    var x=c2.getContext('2d');
+    x.fillStyle='#ffffff';x.fillRect(0,0,w,h);
+    x.drawImage(src,0,0,w,h);
+    return c2.toDataURL('image/jpeg',0.7);
+  }catch(e){console.warn('sig',e);return '';}
+}
+function mkPDF(S){
   var J=window.jspdf.jsPDF;
-  var doc=new J({orientation:'portrait',unit:'mm',format:'a4'});
+  var doc=new J({orientation:'portrait',unit:'mm',format:'a4',compress:true});
   var mL=20,pW=210,cW=170,y=20;
   var Cp=[10,28,59],Ca=[29,94,255],Ct=[15,23,42],Cm=[100,116,139],Cb=[226,232,240],Cbg=[241,245,249];
   doc.setFillColor(Cp[0],Cp[1],Cp[2]);doc.rect(0,0,pW,32,'F');
@@ -372,7 +455,7 @@ function mkPDF(){
   doc.text('Rapportino di Lavoro',mL,22);
   doc.setTextColor(255,255,255);doc.setFontSize(8);
   doc.text('N. '+S.num,pW-mL,13,{align:'right'});
-  doc.text(ft()+'  ore '+fn(),pW-mL,21,{align:'right'});
+  doc.text(S.oggi+'  ore '+S.ora,pW-mL,21,{align:'right'});
   y=42;
   function sh(txt){
     doc.setFillColor(Cbg[0],Cbg[1],Cbg[2]);doc.rect(mL,y,cW,7,'F');
@@ -410,10 +493,10 @@ function mkPDF(){
   doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(Cm[0],Cm[1],Cm[2]);
   var at='Il cliente dichiara di aver verificato i lavori eseguiti e di approvarli.';
   var al=doc.splitTextToSize(at,cW-6);doc.text(al,mL+3,y);y+=al.length*5+8;
-  doc.addImage(S.sp.canvas.toDataURL('image/png'),'PNG',mL,y,80,30);
+  if(S.sigImg)doc.addImage(S.sigImg,'JPEG',mL,y,80,30);
   doc.setDrawColor(Cb[0],Cb[1],Cb[2]);doc.setLineWidth(.4);doc.line(mL,y+32,mL+80,y+32);
   doc.setTextColor(Cm[0],Cm[1],Cm[2]);doc.setFontSize(7.5);doc.setFont('helvetica','normal');
-  doc.text('Firma del cliente',mL,y+37);doc.text('Data: '+ft(),mL+90,y+37);
+  doc.text('Firma del cliente',mL,y+37);doc.text('Data: '+S.oggi,mL+90,y+37);
   doc.setFillColor(Cp[0],Cp[1],Cp[2]);doc.rect(0,285,pW,12,'F');
   doc.setTextColor(130,170,255);doc.setFontSize(6.5);
   doc.text('GD Water - Servizi post-vendita impianti erogazione acqua uso alimentare',105,292,{align:'center'});
@@ -425,54 +508,60 @@ function send(){
   btn.innerHTML='<span class="sp"></span>Generazione...';
 
   setTimeout(function(){
-    var pdfB64=null, doc=null, fname=null;
+    // 1. numero progressivo + job serializzabile
+    S.num=nextNum(S.tecnico);
+    var job={
+      num:S.num,oggi:ft(),ora:fn(),tecnico:S.tecnico,
+      cl:{n:S.cl.n,i:S.cl.i,t:S.cl.t,e:S.cl.e},
+      ats:S.ats,qs:S.qs,exs:S.exs,
+      oi:S.oi,of:S.of,nt:S.nt,mo:S.mo,se:S.se,di:S.di,
+      mat:S.mat,sigImg:S.sigImg,tries:0
+    };
 
-    // 1. Genera PDF
+    // 2. PDF
+    var doc=null,pdfB64=null;
     try{
-      doc=mkPDF();
-      fname='Rapportino_'+S.num+'_'+S.cl.n.replace(/\s+/g,'_')+'.pdf';
+      doc=mkPDF(job);
       pdfB64=doc.output('datauristring').split(',')[1];
-    }catch(e){
-      console.warn('PDF error:',e);
-    }
+    }catch(e){console.warn('PDF error:',e);}
 
-    // 2. Vai SUBITO a schermata OK
-    btn.disabled=false;
-    btn.textContent='Genera PDF e Invia';
+    // 3. il rapportino entra SUBITO in coda: niente viene perso
+    qAdd(job);
+
+    // 4. schermata di conferma
+    btn.disabled=false;btn.textContent='Genera PDF e Invia';
+    document.getElementById('oknum').textContent='N. '+job.num;
+    document.getElementById('okmsg').innerHTML='Invio in corso...';
     go(6);
 
-    // 3. Download PDF in background con piccolo delay
+    // 5. download PDF (non blocca nulla)
     if(doc){
       setTimeout(function(){
-        try{doc.save(fname);}catch(e){console.warn('save:',e);}
+        try{doc.save('Rapportino_'+job.num+'_'+job.cl.n.replace(/\s+/g,'_')+'.pdf');}
+        catch(e){console.warn('save:',e);}
       },300);
     }
 
-    // 4. Email in background
+    // 6. invio: se riesce esce dalla coda, altrimenti resta e riparte da solo
     if(pdfB64){
-      setTimeout(function(){
-        fetch('/api/send-report',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            pdf:pdfB64,
-            data:{
-              num:S.num,oggi:ft(),tecnico:S.tecnico,
-              cliente:S.cl.n,indirizzo:S.cl.i||'-',tipo:S.cl.t,emailCliente:S.cl.e||'',
-              ats:S.ats,orario:S.oi?S.oi+'-'+S.of:'-',
-              note:S.nt||'Nessuna',modello:S.mo||'-',seriale:S.se||'-',
-              materiali:S.mat.map(function(m){return m.d+' x'+m.q;}).join(', ')||'Nessuno'
-            }
-          })
-        }).then(function(r){
-          console.log('email ok:',r.status);
-        }).catch(function(e){
-          console.error('email error:',e);
-        });
-      },500);
-    }
-
+      fetch('/api/send-report',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({pdf:pdfB64,data:jobToPayload(job)})
+      }).then(function(r){
+        if(r.ok){
+          qDel(job.num);
+          document.getElementById('okmsg').innerHTML='PDF scaricato sul dispositivo.<br>Email inviata a:<br><strong>service@gdwater.it</strong><br><strong>amministrazione@gdwater.it</strong>';
+        }else{ okPending(r.status); }
+      }).catch(function(e){console.warn('email error:',e);okPending('offline');});
+    }else{ okPending('pdf'); }
   },100);
+}
+
+function okPending(why){
+  var ico=document.getElementById('okico'),tit=document.getElementById('oktit');
+  if(ico){ico.textContent='!';ico.style.background='#FEF3C7';ico.style.color='#92400E';}
+  if(tit)tit.textContent='Rapportino salvato';
+  document.getElementById('okmsg').innerHTML='<strong>Email non ancora partita.</strong><br>Il rapportino resta salvato sul telefono e riparte da solo alla prossima apertura dell\'app.<br><span style="font-size:12px;color:#94A3B8">('+why+')</span>';
 }
 
 function reset(){
@@ -491,9 +580,16 @@ function reset(){
   ['ex-tf','ex-tf2'].forEach(function(x){var el=document.getElementById(x);if(el)el.value='';});
   if(document.getElementById('ex-np'))document.getElementById('ex-np').value='';
   ['ex-mf-err','ex-mf2-err','ex-tf-err','ex-tf2-err','ex-kb-err'].forEach(function(x){var el=document.getElementById(x);if(el)el.style.display='none';});
-  rAt();go(1);
+  rAt();go(1);qBar();
 }
-rAt();go(1);
+
+/* avvio */
+rAt();go(1);qBar();
+setTimeout(function(){flushQueue(false);},1200);
+window.addEventListener('online',function(){flushQueue(false);});
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible')flushQueue(false);
+});
 </script>
 </body>
 </html>

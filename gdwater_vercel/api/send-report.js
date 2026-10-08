@@ -22,24 +22,33 @@ const UFFICIO = ['service@gdwater.it', 'amministrazione@gdwater.it'];
    ============================================================ */
 async function logRow(row) {
   if (!SHEET_URL) {
-    console.log('[SHEET] variabile SHEET_WEBHOOK_URL NON impostata — log saltato');
+    console.log('[SHEET] variabile SHEET_WEBHOOK_URL NON impostata - log saltato');
     return;
   }
-  console.log('[SHEET] invio a:', SHEET_URL.slice(0, 60) + '...');
+  const t0 = Date.now();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 7000);   // tetto duro: la funzione non resta mai appesa
   try {
     const r = await fetch(SHEET_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(row),
-      redirect: 'follow'
+      redirect: 'follow',
+      signal: ctrl.signal
     });
     const testo = await r.text();
-    console.log('[SHEET] risposta HTTP', r.status, '| primi 200 caratteri:', testo.slice(0, 200));
+    console.log('[SHEET] HTTP', r.status, 'in', Date.now() - t0, 'ms | risposta:', testo.slice(0, 200));
     if (testo.indexOf('"ok":true') === -1) {
-      console.warn('[SHEET] ATTENZIONE: lo script non ha confermato la scrittura.');
+      console.warn('[SHEET] lo script NON ha confermato la scrittura');
     }
   } catch (e) {
-    console.warn('[SHEET] chiamata fallita:', e.message);
+    if (e.name === 'AbortError') {
+      console.warn('[SHEET] TIMEOUT dopo 7s - riga non scritta, email comunque inviata');
+    } else {
+      console.warn('[SHEET] chiamata fallita dopo', Date.now() - t0, 'ms:', e.message);
+    }
+  } finally {
+    clearTimeout(timer);
   }
 }
 

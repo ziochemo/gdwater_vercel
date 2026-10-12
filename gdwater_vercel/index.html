@@ -188,6 +188,10 @@ function nextNum(tec){
 
 /* ---------- coda locale con retry ---------- */
 var QK='gdw_queue';
+var SK='gdw_spediti';   /* numeri gia confermati dal server: non si rispediscono mai */
+function sGet(){try{return JSON.parse(localStorage.getItem(SK)||'[]');}catch(e){return [];}}
+function sAdd(n){try{var a=sGet();if(a.indexOf(n)<0){a.push(n);if(a.length>300)a=a.slice(-300);localStorage.setItem(SK,JSON.stringify(a));}}catch(e){}}
+function sHas(n){return sGet().indexOf(n)>=0;}
 var qSending={};   /* rapportini con un invio gia in volo: evita i doppioni */
 function qGet(){try{return JSON.parse(localStorage.getItem(QK)||'[]');}catch(e){return [];}}
 function qSet(a){try{localStorage.setItem(QK,JSON.stringify(a));}catch(e){console.warn('queue full',e);}}
@@ -203,6 +207,7 @@ function qBar(){
     : a.length+' rapportini non ancora inviati';
 }
 function postJob(j,cb){
+  if(sHas(j.num)){console.log('gia spedito, rimuovo dalla coda',j.num);cb(true);return;}
   if(qSending[j.num]){console.log('gia in invio, salto',j.num);cb(false);return;}
   var pdf=null;
   try{pdf=mkPDF(j).output('datauristring').split(',')[1];}
@@ -236,7 +241,7 @@ function flushQueue(manual){
   a.forEach(function(j){
     j.tries=(j.tries||0)+1;
     postJob(j,function(good){
-      if(good){qDel(j.num);ok++;}
+      if(good){sAdd(j.num);qDel(j.num);ok++;}
       else{var cur=qGet();for(var i=0;i<cur.length;i++){if(cur[i].num===j.num)cur[i].tries=j.tries;}qSet(cur);}
       left--;
       if(left===0){
@@ -512,10 +517,9 @@ function mkPDF(S){
 function send(){
   var btn=document.getElementById('bn');
   btn.disabled=true;
-  btn.innerHTML='<span class="sp"></span>Generazione...';
+  btn.innerHTML='<span class="sp"></span>Invio in corso...';
 
   setTimeout(function(){
-    // 1. numero progressivo + job serializzabile
     S.num=nextNum(S.tecnico);
     var job={
       num:S.num,oggi:ft(),ora:fn(),tecnico:S.tecnico,
@@ -525,44 +529,54 @@ function send(){
       mat:S.mat,sigImg:S.sigImg,tries:0
     };
 
-    // 2. PDF
-    var doc=null,pdfB64=null;
+    var doc=null,pdfB64=null,fname=null;
     try{
       doc=mkPDF(job);
+      fname='Rapportino_'+job.num+'_'+job.cl.n.replace(/\s+/g,'_')+'.pdf';
       pdfB64=doc.output('datauristring').split(',')[1];
-    }catch(e){console.warn('PDF error:',e);}
+    }catch(e){
+      console.warn('PDF error:',e);
+      btn.disabled=false;btn.textContent='Genera PDF e Invia';
+      alert('Errore nella generazione del PDF. Riprova.');
+      return;
+    }
 
-    // 3. il rapportino entra SUBITO in coda: niente viene perso
+    /* il rapportino entra subito in coda: da qui in poi non si perde */
     qAdd(job);
-
-    // 4. schermata di conferma
-    btn.disabled=false;btn.textContent='Genera PDF e Invia';
     document.getElementById('oknum').textContent='N. '+job.num;
     document.getElementById('okmsg').innerHTML='Invio in corso...';
     go(6);
+    btn.disabled=false;btn.textContent='Genera PDF e Invia';
 
-    // 5. download PDF (non blocca nulla)
-    if(doc){
+    /* il PDF si scarica DOPO: su iPhone il visualizzatore sospende la pagina
+       e troncherebbe la richiesta ancora in volo */
+    function scaricaPdf(){
       setTimeout(function(){
-        try{doc.save('Rapportino_'+job.num+'_'+job.cl.n.replace(/\s+/g,'_')+'.pdf');}
-        catch(e){console.warn('save:',e);}
-      },300);
+        try{doc.save(fname);}catch(e){console.warn('save:',e);}
+      },400);
     }
 
-    // 6. invio: se riesce esce dalla coda, altrimenti resta e riparte da solo
-    if(pdfB64){
-      qSending[job.num]=true;
-      fetch('/api/send-report',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({pdf:pdfB64,data:jobToPayload(job)})
-      }).then(function(r){
-        delete qSending[job.num];
-        if(r.ok){
-          qDel(job.num);
-          document.getElementById('okmsg').innerHTML='PDF scaricato sul dispositivo.<br>Email inviata a:<br><strong>service@gdwater.it</strong><br><strong>amministrazione@gdwater.it</strong>';
-        }else{ okPending(r.status); }
-      }).catch(function(e){delete qSending[job.num];console.warn('email error:',e);okPending('offline');});
-    }else{ okPending('pdf'); }
+    qSending[job.num]=true;
+    fetch('/api/send-report',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pdf:pdfB64,data:jobToPayload(job)})
+    }).then(function(r){
+      delete qSending[job.num];
+      if(r.ok){
+        sAdd(job.num);
+        qDel(job.num);
+        document.getElementById('okmsg').innerHTML='PDF scaricato sul dispositivo.<br>Email inviata a:<br><strong>service@gdwater.it</strong><br><strong>amministrazione@gdwater.it</strong>';
+      }else{
+        okPending(r.status);
+      }
+      scaricaPdf();
+    }).catch(function(e){
+      delete qSending[job.num];
+      console.warn('email error:',e);
+      okPending('rete');
+      scaricaPdf();
+    });
   },100);
 }
 

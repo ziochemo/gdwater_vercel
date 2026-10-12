@@ -11,7 +11,7 @@ const TEC_MAIL = {
   "Ecobay":    "info@ecobay.it"
 };
 
-const UFFICIO = ['service@gdwater.it', 'amministrazione@gdwater.it'];
+const UFFICIO = ['cinzia@termoel.it', 'amministrazione@gdwater.it'];
 
 /* ============================================================
    REGISTRO SUL FOGLIO

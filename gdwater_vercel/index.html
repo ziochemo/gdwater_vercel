@@ -178,6 +178,33 @@ function ns(){return{p:1,cl:{n:'',i:'',t:'Famiglia',e:''},tecnico:'',ats:[],oi:'
 function p2(n){return (''+n).padStart(2,'0');}
 
 /* ---------- numerazione progressiva per tecnico ---------- */
+/* identificatore tecnico: univoco anche se il contatore si azzera */
+function newUid(){
+  return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
+}
+/* chiave usata per coda e deduplicazione; i job vecchi senza uid ne ricevono uno stabile */
+function jobKey(j){
+  return j.uid || ('old-'+j.num+'-'+(j.oggi||'')+(j.ora||'')).replace(/[^A-Za-z0-9-]/g,'');
+}
+
+/* allinea il contatore locale all'ultimo numero registrato sul foglio:
+   ripara un localStorage cancellato dal browser (iOS lo fa dopo giorni di inattivita) */
+function allineaContatore(tec){
+  var pre=TECP[tec]; if(!pre)return;
+  fetch('/api/send-report',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'lastnum',prefisso:pre})
+  }).then(function(r){return r.json();}).then(function(d){
+    if(!d||typeof d.ultimo!=='number')return;
+    var k='gdw_seq_'+pre, loc=0;
+    try{loc=parseInt(localStorage.getItem(k)||'0',10)||0;}catch(e){}
+    if(d.ultimo>loc){
+      try{localStorage.setItem(k,String(d.ultimo));}catch(e){}
+      console.log('contatore '+pre+' riallineato da '+loc+' a '+d.ultimo);
+    }
+  }).catch(function(e){console.log('contatore non riallineato (offline)');});
+}
+
 function nextNum(tec){
   var pre=TECP[tec]||'GDW', k='gdw_seq_'+pre, n=0;
   try{n=parseInt(localStorage.getItem(k)||'0',10)||0;}catch(e){}
@@ -196,7 +223,7 @@ var qSending={};   /* rapportini con un invio gia in volo: evita i doppioni */
 function qGet(){try{return JSON.parse(localStorage.getItem(QK)||'[]');}catch(e){return [];}}
 function qSet(a){try{localStorage.setItem(QK,JSON.stringify(a));}catch(e){console.warn('queue full',e);}}
 function qAdd(j){var a=qGet();a.push(j);qSet(a);qBar();}
-function qDel(num){qSet(qGet().filter(function(x){return x.num!==num;}));qBar();}
+function qDel(k){qSet(qGet().filter(function(x){return jobKey(x)!==k;}));qBar();}
 function qBar(){
   var a=qGet(), el=document.getElementById('qbar');
   if(!el)return;
@@ -207,24 +234,25 @@ function qBar(){
     : a.length+' rapportini non ancora inviati';
 }
 function postJob(j,cb){
-  if(sHas(j.num)){console.log('gia spedito, rimuovo dalla coda',j.num);cb(true);return;}
-  if(qSending[j.num]){console.log('gia in invio, salto',j.num);cb(false);return;}
+  var k=jobKey(j);
+  if(sHas(k)){console.log('gia spedito, rimuovo dalla coda',j.num);cb(true);return;}
+  if(qSending[k]){console.log('gia in invio, salto',j.num);cb(false);return;}
   var pdf=null;
   try{pdf=mkPDF(j).output('datauristring').split(',')[1];}
   catch(e){console.warn('pdf retry fail',e);cb(false);return;}
-  qSending[j.num]=true;
+  qSending[k]=true;
   fetch('/api/send-report',{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({pdf:pdf,data:jobToPayload(j)})
   }).then(function(r){
-    delete qSending[j.num];cb(r.ok);
+    delete qSending[k];cb(r.ok);
   }).catch(function(e){
-    delete qSending[j.num];console.warn('post fail',e);cb(false);
+    delete qSending[k];console.warn('post fail',e);cb(false);
   });
 }
 function jobToPayload(j){
   return {
-    num:j.num,oggi:j.oggi,ora:j.ora,tecnico:j.tecnico,
+    uid:jobKey(j),num:j.num,oggi:j.oggi,ora:j.ora,tecnico:j.tecnico,
     cliente:j.cl.n,indirizzo:j.cl.i||'-',tipo:j.cl.t,emailCliente:j.cl.e||'',
     ats:j.ats,orario:j.oi?j.oi+'-'+j.of:'-',
     note:j.nt||'Nessuna',modello:j.mo||'-',seriale:j.se||'-',
@@ -240,9 +268,10 @@ function flushQueue(manual){
   var left=a.length,ok=0;
   a.forEach(function(j){
     j.tries=(j.tries||0)+1;
+    var kj=jobKey(j);
     postJob(j,function(good){
-      if(good){sAdd(j.num);qDel(j.num);ok++;}
-      else{var cur=qGet();for(var i=0;i<cur.length;i++){if(cur[i].num===j.num)cur[i].tries=j.tries;}qSet(cur);}
+      if(good){sAdd(kj);qDel(kj);ok++;}
+      else{var cur=qGet();for(var i=0;i<cur.length;i++){if(jobKey(cur[i])===kj)cur[i].tries=j.tries;}qSet(cur);}
       left--;
       if(left===0){
         qBar();
@@ -522,6 +551,7 @@ function send(){
   setTimeout(function(){
     S.num=nextNum(S.tecnico);
     var job={
+      uid:newUid(),
       num:S.num,oggi:ft(),ora:fn(),tecnico:S.tecnico,
       cl:{n:S.cl.n,i:S.cl.i,t:S.cl.t,e:S.cl.e},
       ats:S.ats,qs:S.qs,exs:S.exs,
@@ -556,23 +586,24 @@ function send(){
       },400);
     }
 
-    qSending[job.num]=true;
+    var kjob=jobKey(job);
+    qSending[kjob]=true;
     fetch('/api/send-report',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({pdf:pdfB64,data:jobToPayload(job)})
     }).then(function(r){
-      delete qSending[job.num];
+      delete qSending[kjob];
       if(r.ok){
-        sAdd(job.num);
-        qDel(job.num);
+        sAdd(kjob);
+        qDel(kjob);
         document.getElementById('okmsg').innerHTML='PDF scaricato sul dispositivo.<br>Email inviata a:<br><strong>cinzia@termoel.it</strong><br><strong>amministrazione@gdwater.it</strong>';
       }else{
         okPending(r.status);
       }
       scaricaPdf();
     }).catch(function(e){
-      delete qSending[job.num];
+      delete qSending[kjob];
       console.warn('email error:',e);
       okPending('rete');
       scaricaPdf();
@@ -608,6 +639,10 @@ function reset(){
 
 /* avvio */
 rAt();go(1);qBar();
+(function(){
+  var sel=document.getElementById('tec');
+  if(sel)sel.addEventListener('change',function(){allineaContatore(sel.value);});
+}());
 setTimeout(function(){flushQueue(false);},1200);
 window.addEventListener('online',function(){flushQueue(false);});
 document.addEventListener('visibilitychange',function(){

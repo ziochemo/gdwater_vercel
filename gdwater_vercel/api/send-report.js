@@ -23,9 +23,13 @@ async function sheetCall(payload) {
     console.log('[SHEET] SHEET_WEBHOOK_URL non impostata - registro saltato');
     return null;
   }
+  /* La prenotazione precede l'invio: un tetto stretto evita di far attendere
+     il tecnico. L'esito arriva a email gia spedita, quindi puo aspettare di
+     piu: cosi il foglio non resta su IN CORSO quando Apps Script e lento. */
+  const tetto = (payload.action === 'result') ? 14000 : 7000;
   const t0 = Date.now();
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 7000);
+  const timer = setTimeout(() => ctrl.abort(), tetto);
   try {
     const r = await fetch(SHEET_URL, {
       method: 'POST',
@@ -39,7 +43,7 @@ async function sheetCall(payload) {
     try { return JSON.parse(testo); } catch (e) { return null; }
   } catch (e) {
     console.warn('[SHEET]', payload.action, e.name === 'AbortError'
-      ? 'TIMEOUT dopo 7s'
+      ? 'TIMEOUT dopo ' + (tetto / 1000) + 's'
       : 'errore: ' + e.message);
     return null;
   } finally {
@@ -60,6 +64,14 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = req.body;
+
+    /* richiesta di servizio: ultimo progressivo di un tecnico */
+    if (body.action === 'lastnum') {
+      const risp = await sheetCall({ action: 'lastnum', prefisso: body.prefisso });
+      res.status(200).json({ ok: true, ultimo: (risp && risp.ultimo) || 0 });
+      return;
+    }
+
     data = body.data || {};
     const pdf = body.pdf;
 
@@ -68,7 +80,7 @@ module.exports = async function handler(req, res) {
       : String(data.ats || '');
 
     const anagrafica = {
-      num: data.num, ts: new Date().toISOString(),
+      uid: data.uid || data.num, num: data.num, ts: new Date().toISOString(),
       data: data.oggi, ora: data.ora,
       tecnico: data.tecnico, cliente: data.cliente,
       attivita: attivitaTxt, tentativi: data.tentativi || 1
@@ -78,7 +90,7 @@ module.exports = async function handler(req, res) {
     const claim = await sheetCall(Object.assign({ action: 'claim' }, anagrafica));
 
     if (claim && claim.duplicate) {
-      console.log('[DEDUP] rapportino', data.num, 'gia inviato in precedenza - non rispedito');
+      console.log('[DEDUP] rapportino', data.num, 'uid', data.uid, '- gia inviato, non rispedito');
       res.status(200).json({ ok: true, duplicate: true });
       return;
     }
@@ -144,7 +156,7 @@ module.exports = async function handler(req, res) {
 
     /* ---- 4. ESITO ---- */
     await sheetCall({
-      action: 'result', num: data.num, esito: 'INVIATA',
+      action: 'result', uid: data.uid || data.num, num: data.num, esito: 'INVIATA',
       destinatari: to.join(', '), errore: '', tentativi: data.tentativi || 1
     });
 
@@ -154,7 +166,7 @@ module.exports = async function handler(req, res) {
     console.error('send-report error:', err);
 
     await sheetCall({
-      action: 'result', num: data.num || '?', esito: 'ERRORE',
+      action: 'result', uid: data.uid || data.num || '?', num: data.num || '?', esito: 'ERRORE',
       destinatari: to.join(', '),
       errore: String(err.message || err).slice(0, 300),
       tentativi: data.tentativi || 1

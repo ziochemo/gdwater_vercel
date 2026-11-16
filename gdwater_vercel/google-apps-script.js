@@ -23,6 +23,7 @@ function foglio_() {
     sh.setFrozenRows(1);
   } else if (!sh.getRange(1, COL.UID).getValue()) {
     sh.getRange(1, COL.UID).setValue('UID');   // aggiunta una volta sola
+    pulisciRigheVuote_(sh);                    // toglie le righe lasciate dalla versione precedente
   }
   return sh;
 }
@@ -36,6 +37,23 @@ function settimana_(ts) {
   var d = new Date(ts);
   if (isNaN(d)) d = new Date();
   return Utilities.formatDate(d, Session.getScriptTimeZone(), "YYYY-'W'ww");
+}
+
+/* Righe senza numero ne tecnico: le lasciava la versione precedente dello
+   script quando riceveva una richiesta che non conosceva. Non contengono
+   nulla, si rimuovono una volta sola al primo avvio della nuova versione. */
+function pulisciRigheVuote_(sh) {
+  if (sh.getLastRow() < 2) return;
+  var v = sh.getRange(2, 1, sh.getLastRow() - 1, COL.TEC).getValues();
+  var tolte = 0;
+  for (var i = v.length - 1; i >= 0; i--) {
+    if (!String(v[i][COL.NUM - 1] || '').trim() &&
+        !String(v[i][COL.TEC - 1] || '').trim()) {
+      sh.deleteRow(i + 2);
+      tolte++;
+    }
+  }
+  if (tolte) Logger.log('righe vuote rimosse: ' + tolte);
 }
 
 /* cerca il rapportino per identificatore tecnico, dal fondo.

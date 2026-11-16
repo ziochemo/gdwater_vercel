@@ -39,6 +39,19 @@ function settimana_(ts) {
   return Utilities.formatDate(d, Session.getScriptTimeZone(), "YYYY-'W'ww");
 }
 
+/* ------------------------------------------------------------------
+   MANUTENZIONE A MANO
+   Nell'editor Apps Script scegli "pulisciOra" nel menu a tendina in
+   alto e premi Esegui: toglie le righe vuote rimaste nel foglio.
+   Si puo rilanciare quando serve, non cancella nulla di valido.
+   ------------------------------------------------------------------ */
+function pulisciOra() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  if (!sh) { Logger.log('Foglio "' + SHEET_NAME + '" non trovato.'); return; }
+  var n = pulisciRigheVuote_(sh);
+  Logger.log(n ? ('Righe vuote rimosse: ' + n) : 'Nessuna riga vuota da rimuovere.');
+}
+
 /* Righe senza numero ne tecnico: le lasciava la versione precedente dello
    script quando riceveva una richiesta che non conosceva. Non contengono
    nulla, si rimuovono una volta sola al primo avvio della nuova versione. */
@@ -53,7 +66,7 @@ function pulisciRigheVuote_(sh) {
       tolte++;
     }
   }
-  if (tolte) Logger.log('righe vuote rimosse: ' + tolte);
+  return tolte;
 }
 
 /* cerca il rapportino per identificatore tecnico, dal fondo.

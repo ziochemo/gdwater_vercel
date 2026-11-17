@@ -6,6 +6,18 @@
 
 var SHEET_NAME = 'Log';
 
+/* Cambia a ogni modifica dello script: serve a verificare, aprendo
+   l'indirizzo /exec nel browser, quale versione e davvero pubblicata. */
+var VERSIONE_SCRIPT = '2026-11-17 · dedup per UID';
+
+/* Aperto nel browser, l'indirizzo /exec risponde con la versione in uso.
+   Se compare "Funzione script non trovata: doGet", il deployment e vecchio. */
+function doGet() {
+  return ContentService
+    .createTextOutput(JSON.stringify({ ok: true, versione: VERSIONE_SCRIPT }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 var COL = { TS:1, NUM:2, DATA:3, ORA:4, TEC:5, CLI:6, ATT:7,
             ESITO:8, DEST:9, TENT:10, ERR:11, SETT:12, UID:13 };
 

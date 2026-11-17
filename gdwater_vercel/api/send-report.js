@@ -4,7 +4,12 @@ const { Resend } = require('resend');
    CONFIGURAZIONE — entrambe come variabili d'ambiente su Vercel
    ============================================================ */
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
-const SHEET_URL  = process.env.SHEET_WEBHOOK_URL || '';
+/* Indirizzo della web app del foglio.
+   Sta qui e non nella variabile d'ambiente perche su Vercel
+   SHEET_WEBHOOK_URL punta a una distribuzione Apps Script dismessa:
+   questa riga ha la precedenza, cosi non serve intervenire sul pannello.
+   Cambiando distribuzione, si aggiorna questa riga. */
+const SHEET_URL  = 'https://script.google.com/macros/s/AKfycbwUXH7mbm6M1DOJWzR3qR2JTVuC1uqDrnhpEQO6ikjW-IXq-DqhPZ3upPkX_3HlN3eR/exec';
 
 const TEC_MAIL = {
   "D'Attimis": "pdattimis@gmail.com",
